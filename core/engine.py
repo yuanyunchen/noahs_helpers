@@ -95,6 +95,7 @@ class Engine:
         # a obtain and/or release animals in their sight
         # b move in any direction
 
+        obtained: dict[Animal, list[Player]] = {}
         for helper in self.helpers:
             action = helper.get_action(messages_to[helper])
 
@@ -120,12 +121,12 @@ class Engine:
 
                     if a not in helper_cell.animals:
                         raise Exception(
-                            f"animal {a} not in helper {helper.id}'s cell {(helper_x, helper_y)}"
+                            f"animal {a}, (hash={a.__hash__()}, id={id(a)}) not in helper {helper.id}'s cell {(helper_x, helper_y)}"
                         )
 
-                    helper_cell.animals.remove(a)
-                    del self.free_animals[a]
-                    helper.flock.add(a)
+                    if a not in obtained:
+                        obtained[a] = []
+                    obtained[a].append(helper)
 
                 case Move(x=x, y=y):
                     if not helper.can_move_to(x, y):
@@ -134,6 +135,25 @@ class Engine:
                         )
 
                     helper.position = (x, y)
+
+                    # offload helper's flock to ark
+                    if helper.is_in_ark():
+                        self.ark.animals = self.ark.animals.union(helper.flock)
+                        helper.flock.clear()
+
+        # multiple helpers may try to obtain same animal
+        # Only one may actually obtain it.
+        # This is decided by:
+        # 1. helper with min flock size
+        # 2. helper with min id
+        for obt_animal, helpers in obtained.items():
+            best_helper = min(helpers, key=lambda h: (len(h.flock), h.id))
+            helper_x, helper_y = tuple(map(int, best_helper.position))
+            helper_cell = self.grid[helper_y][helper_x]
+
+            helper_cell.animals.remove(obt_animal)
+            del self.free_animals[obt_animal]
+            best_helper.flock.add(obt_animal)
 
         # 5. let free animals move with `ANIMAL_MOVE_PROBABILITY` probability
         for animal, cell in self.free_animals.items():

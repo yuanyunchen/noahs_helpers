@@ -72,7 +72,9 @@ class Sight:
 
         return cell
 
-    def __iter__(self) -> Iterator[CellView | None]:
+    def __iter__(self) -> Iterator[CellView]:
         for y in range(self.north, self.south + 1):
             for x in range(self.west, self.east + 1):
-                yield self._sight[y][x]
+                cell = self._sight[y - self.north][x - self.west]
+                if cell is not None:
+                    yield cell

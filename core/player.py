@@ -2,6 +2,8 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import final
 
+from math import hypot
+
 from core.action import Action
 from core.animal import Animal
 from core.message import Message
@@ -59,6 +61,35 @@ class Player(ABC):
 
         curr_x, curr_y = self.position
         return (abs(curr_x - x) ** 2 + abs(curr_y - y) ** 2) * 0.5 <= c.MAX_DISTANCE_KM
+
+    @final
+    def is_flock_full(self) -> bool:
+        return len(self.flock) == c.MAX_FLOCK_SIZE
+
+    @final
+    def is_flock_empty(self) -> bool:
+        return len(self.flock) == 0
+
+    @final
+    def move_towards(self, x: float, y: float) -> tuple[float, float]:
+        # let's be conservative, we don't want to move too far
+        step_size = c.MAX_DISTANCE_KM * 0.99
+
+        cx, cy = self.position
+
+        dx = x - cx
+        dy = y - cy
+        dist = hypot(dx, dy)
+
+        if dist == 0:
+            return cx, cy
+
+        if dist <= step_size:
+            return cx + dx, cy + dy
+
+        scale = step_size / dist
+
+        return cx + dx * scale, cy + dy * scale
 
     @abstractmethod
     def check_surroundings(self, snapshot: HelperSurroundingsSnapshot) -> int:
