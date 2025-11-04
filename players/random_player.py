@@ -1,4 +1,3 @@
-from os import close
 from random import random, choice
 
 from core.action import Action, Move, Obtain

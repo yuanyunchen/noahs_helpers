@@ -231,7 +231,7 @@ class ArkUI:
 
         self.write_at(
             self.small_font,
-            f"Flock",
+            "Flock",
             (margined_x, y),
             align="left",
         )
