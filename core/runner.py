@@ -77,13 +77,11 @@ class ArkRunner:
 
         return engine
 
-    def run(self) -> dict:
+    def run(self) -> float:
         engine = self.setup_engine()
-        engine.run_simulation()
-
-        return {}
+        return engine.run_simulation()
 
     def run_gui(self):
         engine = self.setup_engine()
         visualizer = ArkUI(engine)
-        visualizer.run()
+        return visualizer.run()

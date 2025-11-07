@@ -8,12 +8,12 @@ import core.constants as c
 from core.player import Player
 
 
-def coords_to_px(x: float, y: float) -> tuple[float, float]:
+def coords_to_px(x: float, y: float) -> tuple[int, int]:
     x_px = c.LANDSCAPE_WEST_PX + (c.LANDSCAPE_EAST_PX - c.LANDSCAPE_WEST_PX) * x / c.X
     y_px = (
         c.LANDSCAPE_NORTH_PX + (c.LANDSCAPE_SOUTH_PX - c.LANDSCAPE_NORTH_PX) * y / c.Y
     )
-    return x_px, y_px
+    return int(x_px), int(y_px)
 
 
 def km_to_px(km: float) -> float:
@@ -229,11 +229,18 @@ class ArkUI:
         )
 
         flist = list(flock) + [None] * (c.MAX_FLOCK_SIZE - len(flock))
+        y += 30
+        x = margined_x + 20
         for i in range(c.MAX_FLOCK_SIZE):
-            y += 30
-            self.write_at(
-                self.small_font, f"{i}: {flist[i]}", (margined_x + 10, y), align="left"
-            )
+            fi = flist[i]
+            pos = (x, y)
+
+            if fi is None:
+                self.write_at(self.small_font, "None", pos)
+            else:
+                fi.draw(self.screen, self.small_font, pos)
+
+            x += 60
 
         y += c.MARGIN_Y
 
@@ -250,20 +257,7 @@ class ArkUI:
         for animal, cell in self.engine.free_animals.items():
             animal_center = coords_to_px(cell.x, cell.y)
 
-            color = (
-                c.MALE_ANIMAL_COLOR
-                if animal.gender == Gender.Male
-                else c.FEMALE_ANIMAL_COLOR
-            )
-
-            animal_rect = pygame.Rect(
-                animal_center[0] - c.ANIMAL_RADIUS / 2,
-                animal_center[1] - c.ANIMAL_RADIUS / 2,
-                c.ANIMAL_RADIUS,
-                c.ANIMAL_RADIUS,
-            )
-            pygame.draw.rect(self.screen, color, animal_rect, c.ANIMAL_RADIUS)
-
+            animal.draw(self.screen, self.small_font, animal_center)
             self.drawn_objects[(animal_center, c.ANIMAL_RADIUS)] = animal
 
     def draw_hovered_animal(self, sid: int, gender: Gender, pos: tuple[int, int]):
@@ -294,7 +288,7 @@ class ArkUI:
 
         self.write_at(
             self.small_font,
-            f"gender: {gender}",
+            f"{gender}",
             (margined_x, y),
             align="left",
             color=color,
@@ -353,14 +347,14 @@ class ArkUI:
             y += 30
             self.write_at(
                 self.big_font,
-                f"{sid}:",
+                f"{chr(sid + ord('a'))}:",
                 (info_pane_x + 20, y),
                 align="left",
             )
             self.write_at(
                 self.big_font,
                 f"{num_male}M",
-                (info_pane_x + 60, y),
+                (info_pane_x + 55, y),
                 align="left",
                 color=c.MALE_ANIMAL_COLOR,
             )
@@ -421,12 +415,13 @@ class ArkUI:
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_SPACE:
                     self.paused = not self.paused
-                elif event.key == pygame.K_RIGHT and self.paused:
-                    self.step_simulation()
                 elif event.key == pygame.K_d:  # NEW: Toggle debug mode
                     self.debug_mode = not self.debug_mode
 
-    def run(self) -> dict:
+            elif pygame.key.get_pressed()[pygame.K_PERIOD] and self.paused:
+                self.step_simulation()
+
+    def run(self) -> float:
         while self.running:
             self.screen.fill(self.bg_color)
             self.draw_grid()
@@ -445,4 +440,4 @@ class ArkUI:
 
         pygame.quit()
 
-        return {}
+        return self.engine.ark.get_score()

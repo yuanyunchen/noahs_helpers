@@ -167,6 +167,8 @@ class Engine:
 
         self.time_elapsed += 1
 
-    def run_simulation(self) -> None:
+    def run_simulation(self) -> float:
         while self.time_elapsed < self.time:
             self.run_turn()
+
+        return self.ark.get_score()
