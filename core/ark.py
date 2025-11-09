@@ -16,7 +16,7 @@ class Ark:
     def get_view(self) -> ArkView:
         return ArkView(self.position, self.animals.copy())
 
-    def get_score(self) -> float:
+    def get_score(self) -> int:
         species = self.get_species()
         score = 0
 

@@ -89,7 +89,7 @@ class ArkRunner:
 
         return engine
 
-    def run(self) -> float:
+    def run(self) -> tuple[int, list[float]]:
         engine = self.setup_engine()
         return engine.run_simulation()
 

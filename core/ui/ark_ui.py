@@ -1,5 +1,6 @@
 import pygame
 from typing import Callable
+from collections import deque
 
 from core.animal import Animal, Gender
 from core.ark import Ark
@@ -59,6 +60,9 @@ class ArkUI:
 
         self.scrolls: list[Callable[[int, int, int], None]] = []
         self.scroll_deltas: dict[str, int] = {}
+
+        # tracks the time the past x turns have taken
+        self.times = deque(maxlen=50)
 
     def coords_fit_in_grid(self, x: float, y: float) -> bool:
         west_x, east_x, north_y, south_y = self.get_w_e_n_s()
@@ -592,10 +596,11 @@ class ArkUI:
         x, y = self.draw_info_lines(info_pane_x, info_pane_y)
         self.draw_animals_helpers(x, y)
         self.draw_raindrop()
+        tps = 1 / (sum(self.times) / len(self.times)) if len(self.times) else 0
         write_at(
             self.screen,
             self.tiny_font,
-            f"fps: {self.clock.get_fps():.1f}",
+            f"tps: {tps:.1f}",
             (c.SCREEN_WIDTH - c.MARGIN_X, c.SCREEN_HEIGHT - c.MARGIN_Y + 10),
             align="right",
         )
@@ -639,7 +644,8 @@ class ArkUI:
     def step_simulation(self):
         """Run one turn of simulation."""
         if self.engine.time_elapsed < self.engine.time:
-            self.engine.run_turn()
+            took = self.engine.run_turn()
+            self.times.append(took)
             self.turn += 1
         else:
             self.paused = True
@@ -698,7 +704,7 @@ class ArkUI:
                 x, y = pygame.mouse.get_pos()
                 [handle_scroll(x, y, delta) for handle_scroll in self.scrolls]
 
-    def run(self) -> float:
+    def run(self):
         while self.running:
             self.screen.fill(self.bg_color)
             self.draw_grid()
@@ -719,4 +725,4 @@ class ArkUI:
 
         pygame.quit()
 
-        return self.engine.ark.get_score()
+        return self.engine.get_results()

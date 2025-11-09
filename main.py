@@ -11,11 +11,20 @@ def main():
     runner = ArkRunner(args.player, args.num_helpers, args.animals, args.time, args.ark)
 
     if args.gui:
-        result = runner.run_gui()
+        score, times = runner.run_gui()
     else:
-        result = runner.run()
+        score, times = runner.run()
 
-    print(f"result: {result}")
+    print(f"RESULTS")
+    print(f"{'#'*20}")
+    print(f"SCORE={score}")
+    if len(times):
+        print(f"TOTAL_TURN_TIME={sum(times):.4f}s")
+        print(f"TURNS_PER_SECOND={1 / (sum(times) / len(times)):.0f}")
+    else:
+        print(f"TOTAL_TURN_TIME=-1")
+        print(f"TURNS_PER_SECOND=-1")
+    print(f"{'#'*20}")
 
 
 if __name__ == "__main__":

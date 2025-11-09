@@ -1,4 +1,5 @@
 from random import choice, random
+from time import perf_counter
 
 from core.action import Move, Obtain, Release
 from core.animal import Animal
@@ -32,6 +33,9 @@ class Engine:
         self.time_elapsed = 0
         self.last_messages: dict[int, int | None] = {h.id: None for h in self.helpers}
 
+        # record the time used for each turn
+        self.times = []
+
     def _get_sights(self) -> dict[Player, list[Player]]:
         in_sight: dict[Player, list[Player]] = {helper: [] for helper in self.helpers}
 
@@ -47,7 +51,8 @@ class Engine:
     def is_raining(self) -> bool:
         return self.time_elapsed >= self.time - c.START_RAIN
 
-    def run_turn(self) -> None:
+    def run_turn(self) -> float:
+        start = perf_counter()
         is_raining = self.is_raining()
         ark_view = self.ark.get_view()
         self.last_messages.clear()
@@ -172,13 +177,19 @@ class Engine:
                 self.free_animals[animal] = neighbor
 
         self.time_elapsed += 1
+        end = perf_counter()
+        self.times.append(end - start)
+        return end - start
 
-    def run_simulation(self) -> float:
+    def get_results(self) -> tuple[int, list[float]]:
+        # By the end, all helpers must be in the ark
+        if not all([helper.is_in_ark() for helper in self.helpers]):
+            return 0, []
+
+        return self.ark.get_score(), self.times
+
+    def run_simulation(self) -> tuple[int, list[float]]:
         while self.time_elapsed < self.time:
             self.run_turn()
 
-        # By the end, all helpers must be in the ark
-        if not all([helper.is_in_ark() for helper in self.helpers]):
-            return 0
-
-        return self.ark.get_score()
+        return self.get_results()
