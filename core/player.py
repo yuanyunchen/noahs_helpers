@@ -6,7 +6,6 @@ from math import hypot
 
 import pygame
 
-from core import animal
 from core.action import Action
 from core.animal import Animal
 from core.message import Message

@@ -5,7 +5,6 @@ from collections import deque
 from core.animal import Animal, Gender
 from core.ark import Ark
 from core.engine import Engine
-from core.player import Player
 from core.player_info import PlayerInfo
 from core.ui.utils import render_img, write_at
 from core.views.player_view import Kind
@@ -300,7 +299,6 @@ class ArkUI:
 
     def draw_helpers_on_map(self):
         for hi, helper in self.engine.info_helpers.items():
-
             helper_center = self.map_coords_to_px(hi.x, hi.y)
             helper.draw_on_map(self.screen, helper_center)
 

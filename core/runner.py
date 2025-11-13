@@ -89,7 +89,13 @@ class ArkRunner:
             self.grid[y_cell][x_cell].helpers.add(hi)
 
         engine = Engine(
-            self.grid, self.ark, self.helpers, info_helpers, self.time, animals, species_stats
+            self.grid,
+            self.ark,
+            self.helpers,
+            info_helpers,
+            self.time,
+            animals,
+            species_stats,
         )
 
         return engine
