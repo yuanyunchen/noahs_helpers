@@ -298,23 +298,22 @@ class ArkUI:
                 y += 50
 
     def draw_helpers_on_map(self):
-        for hi, helper in self.engine.info_helpers.items():
+        for hi in self.engine.info_helpers.keys():
             helper_center = self.map_coords_to_px(hi.x, hi.y)
-            helper.draw_on_map(self.screen, helper_center)
+            hi.draw_on_map(self.screen, helper_center)
 
     def draw_helpers(self):
-        for hi, helper in self.engine.info_helpers.items():
+        for hi in self.engine.info_helpers.keys():
             if not self.coords_fit_in_grid(hi.x, hi.y):
                 continue
 
             helper_center = self.coords_to_px(hi.x, hi.y)
 
-            helper.draw(self.screen, self.big_font, helper_center)
+            hi.draw(self.screen, self.big_font, helper_center)
             self.drawn_objects[(helper_center, c.HELPER_RADIUS)] = hi
 
     def draw_hovered_helper(self, hi: PlayerInfo):
-        helper = self.engine.info_helpers[hi]
-        left, top = self.render_hover_view(helper.get_long_name())
+        left, top = self.render_hover_view(hi.get_long_name())
 
         y = top + c.MARGIN_Y
 
@@ -338,13 +337,13 @@ class ArkUI:
                 align="left",
             )
             y += 30
-            helper.draw_flock(self.screen, self.big_font, (margined_x + 20, y))
+            hi.draw_flock(self.screen, self.big_font, (margined_x + 20, y))
 
         y += c.MARGIN_Y
 
         last_msg = self.engine.last_messages[hi.id]
         if last_msg:
-            helper.draw_message(self.screen, self.big_font, (margined_x, y), last_msg)
+            hi.draw_message(self.screen, self.big_font, (margined_x, y), last_msg)
 
     def draw_animals_on_map(self):
         for animal, cell in self.engine.free_animals.items():
@@ -454,7 +453,8 @@ class ArkUI:
 
         if self.engine.time_elapsed == self.engine.time:
             org_score = self.engine.ark.get_score()
-            deduct = not all([helper.is_in_ark() for helper in self.engine.helpers])
+
+            deduct = not all([hi.is_in_ark() for hi in self.engine.info_helpers.keys()])
             write_at(
                 self.screen,
                 self.big_font,
@@ -536,12 +536,12 @@ class ArkUI:
         y = 10
         x = 0
 
-        for hi, helper in self.engine.info_helpers.items():
+        for hi in self.engine.info_helpers.keys():
             if hi.kind == Kind.Noah:
                 write_at(
                     helpers_surface,
                     self.big_font,
-                    f"{helper.get_short_name()}: no flock",
+                    f"{hi.get_short_name()}: no flock",
                     (x, y),
                     align="left",
                 )
@@ -549,17 +549,17 @@ class ArkUI:
                 write_at(
                     helpers_surface,
                     self.big_font,
-                    f"{helper.get_short_name()}: ",
+                    f"{hi.get_short_name()}: ",
                     (x, y),
                     align="left",
                 )
-                helper.draw_flock(helpers_surface, self.big_font, (x + 60, y))
+                hi.draw_flock(helpers_surface, self.big_font, (x + 60, y))
 
             incr_y = y + c.INFO_HELPER_HEIGHT // 2
 
             msg = self.engine.last_messages[hi.id]
             if msg:
-                helper.draw_message(helpers_surface, self.small_font, (x, incr_y), msg)
+                hi.draw_message(helpers_surface, self.small_font, (x, incr_y), msg)
             else:
                 write_at(
                     helpers_surface,
@@ -611,21 +611,21 @@ class ArkUI:
         mask = pygame.Surface((grid.w, grid.h), pygame.SRCALPHA)
         mask.fill((0, 0, 0, 50))
 
-        for helper in self.engine.helpers:
-            if not self.coords_fit_in_grid(*helper.position):
+        for hi in self.engine.info_helpers.keys():
+            if not self.coords_fit_in_grid(hi.x, hi.y):
                 continue
 
-            grid_center = self.coords_to_px(*helper.position)
+            grid_center = self.coords_to_px(hi.x, hi.y)
             center = grid_center[0] - grid.x, grid_center[1] - grid.y
             radius = km_to_px(c.MAX_SIGHT_KM)
 
             pygame.draw.circle(mask, (0, 0, 0, 0), center, radius)
 
-        for helper in self.engine.helpers:
-            if not self.coords_fit_in_grid(*helper.position):
+        for hi in self.engine.info_helpers.keys():
+            if not self.coords_fit_in_grid(hi.x, hi.y):
                 continue
 
-            grid_center = self.coords_to_px(*helper.position)
+            grid_center = self.coords_to_px(hi.x, hi.y)
             center = grid_center[0] - grid.x, grid_center[1] - grid.y
             radius = km_to_px(c.MAX_SIGHT_KM)
 

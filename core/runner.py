@@ -82,7 +82,7 @@ class ArkRunner:
             )
             for id in range(self.num_helpers)
         ]
-        info_helpers = {h.get_info(make_unknown=False): h for h in self.helpers}
+        info_helpers = {h.get_info(): h for h in self.helpers}
 
         for hi, helper in info_helpers.items():
             x_cell, y_cell = tuple(map(int, helper.position))

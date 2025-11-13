@@ -58,7 +58,7 @@ class RandomPlayer(Player):
 
         return old_x + dx, old_y + dy
 
-    def check_surroundings(self, snapshot: HelperSurroundingsSnapshot):
+    def check_surroundings(self, snapshot: HelperSurroundingsSnapshot) -> int:
         # I can't trust that my internal position and flock matches the simulators
         # For example, I wanted to move in a way that I couldn't
         # or the animal I wanted to obtain was actually obtained by another helper

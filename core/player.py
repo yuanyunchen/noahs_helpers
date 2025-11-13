@@ -42,27 +42,15 @@ class Player(ABC):
         return str(self)
 
     @final
-    def get_info(self, make_unknown: bool) -> PlayerInfo:
+    def get_info(self) -> PlayerInfo:
         return PlayerInfo(
             self.id,
             self.position[0],
             self.position[1],
+            self.ark_position,
             self.kind,
-            {a.copy(make_unknown) for a in self.flock},
+            self.flock,
         )
-
-    @final
-    def distance(self, other: Player) -> float:
-        # this is not inherently bad, but just might
-        # be an indicator that our calling logic is bad
-        if self.id == other.id:
-            raise Exception(f"{self}: Calculating distance with myself?")
-
-        x1, y1 = self.position
-        x2, y2 = other.position
-
-        # pytharogas
-        return (abs(x2 - x1) ** 2 + abs(y2 - y1) ** 2) ** 0.5
 
     @final
     def get_view(self) -> PlayerView:
@@ -130,54 +118,6 @@ class Player(ABC):
     def get_short_name(self) -> str:
         return (
             self.kind.value if self.kind == Kind.Noah else f"{self.kind.value}{self.id}"
-        )
-
-    @final
-    def draw(
-        self, screen: pygame.Surface, font: pygame.font.Font, pos: tuple[int, int]
-    ):
-        text = font.render(self.get_short_name(), True, c.HELPER_COLOR)
-        rect = text.get_rect(center=pos)
-        screen.blit(text, rect)
-
-    @final
-    def draw_on_map(self, screen: pygame.Surface, pos: tuple[int, int]):
-        pygame.draw.circle(screen, c.HELPER_COLOR, pos, 4)
-
-    @final
-    def draw_flock(
-        self, screen: pygame.Surface, font: pygame.font.Font, start_pos: tuple[int, int]
-    ):
-        if self.kind == Kind.Noah:
-            raise Exception("Noah doesn't have a flock")
-
-        x, y = start_pos
-        flist = list(self.flock) + [None] * (c.MAX_FLOCK_SIZE - len(self.flock))
-        for i in range(c.MAX_FLOCK_SIZE):
-            fi = flist[i]
-            pos = (x, y)
-
-            if fi is None:
-                write_at(screen, font, "_", pos)
-            else:
-                fi.draw(screen, font, pos)
-
-            x += 40
-
-    @final
-    def draw_message(
-        self,
-        screen: pygame.Surface,
-        font: pygame.font.Font,
-        start_pos: tuple[int, int],
-        msg: int,
-    ):
-        write_at(
-            screen,
-            font,
-            f"msg 0b{msg:08b}={msg}",
-            start_pos,
-            align="left",
         )
 
     @abstractmethod
