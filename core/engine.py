@@ -171,7 +171,6 @@ class Engine:
                         curr_cell.helpers.remove(hi)
                         target_cell.helpers.add(hi)
 
-                    print(f"{helper.get_short_name()}: moving from {hi.x, hi.y} to {x, y}")
                     hi.x = x
                     hi.y = y
 
