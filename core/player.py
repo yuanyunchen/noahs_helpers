@@ -4,13 +4,11 @@ from typing import final
 
 from math import hypot
 
-import pygame
 
 from core.action import Action
 from core.animal import Animal
 from core.message import Message
 from core.player_info import PlayerInfo
-from core.ui.utils import write_at
 from core.snapshots import HelperSurroundingsSnapshot
 from core.views.player_view import PlayerView, Kind
 
