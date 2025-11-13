@@ -32,7 +32,7 @@ class Engine:
         self.helpers = helpers
         self.info_helpers = info_helpers
         self.time = time
-        self.free_animals = animals
+        self.animals: dict[Animal, Cell | PlayerInfo] = dict(animals)
         self.species_stats = species_stats
         self.time_elapsed = 0
         self.last_messages: dict[int, int | None] = {h.id: None for h in self.helpers}
@@ -136,7 +136,7 @@ class Engine:
                         raise Exception(f"animal {a} not in helper {hi.id}'s flock")
 
                     hi.flock.remove(a)
-                    self.free_animals[a] = cell
+                    self.animals[a] = cell
                     cell.animals.add(a)
 
                 case Obtain(animal=a):
@@ -148,14 +148,28 @@ class Engine:
                             f"helper {hi.id} tried to obtain animal with full flock"
                         )
 
-                    if a not in helper_cell.animals:
-                        raise Exception(
-                            f"animal {a}, (id={id(a)}) not in helper {hi.id}'s cell {(helper_x, helper_y)}"
-                        )
+                    placed = self.animals[a]
 
-                    if a not in obtained:
-                        obtained[a] = []
-                    obtained[a].append(hi)
+                    print(
+                        f"{hi.get_long_name()} trying to pick up {a}, placed={placed}"
+                    )
+
+                    match placed:
+                        case Cell() as cell:
+                            if cell != helper_cell or a not in helper_cell.animals:
+                                raise Exception(
+                                    f"animal {a}, (id={id(a)}) not in helper {hi.id}'s cell {(helper_x, helper_y)}"
+                                )
+
+                            if a not in obtained:
+                                obtained[a] = []
+                            obtained[a].append(hi)
+
+                        case PlayerInfo():
+                            # raise Exception(
+                            #     f"{hi.get_long_name()} tried obtaining an animal already obtained by {playerinfo.get_long_name()}"
+                            # )
+                            pass
 
                 case Move(x=x, y=y):
                     if not hi.can_move_to(x, y):
@@ -192,19 +206,21 @@ class Engine:
             helper_cell = self.grid[helper_y][helper_x]
 
             helper_cell.animals.remove(obt_animal)
-            del self.free_animals[obt_animal]
+            self.animals[obt_animal] = best_helper
             best_helper.flock.add(obt_animal)
 
         # 5. let free animals move with `ANIMAL_MOVE_PROBABILITY` probability
-        for animal, cell in self.free_animals.items():
-            if random() < c.ANIMAL_MOVE_PROBABILITY:
-                neighbor = choice(cell.get_emptiest_neighbors())
+        for animal, placed in self.animals.items():
+            match placed:
+                case Cell() as cell:
+                    if random() < c.ANIMAL_MOVE_PROBABILITY:
+                        neighbor = choice(cell.get_emptiest_neighbors())
 
-                cell.animals.remove(animal)
-                neighbor.animals.add(animal)
-                # modifying self.free_animals while iterating
-                # is ok as we're not changing the keys
-                self.free_animals[animal] = neighbor
+                        cell.animals.remove(animal)
+                        neighbor.animals.add(animal)
+                        # modifying self.animals while iterating
+                        # is ok as we're not changing the keys
+                        self.animals[animal] = neighbor
 
         self.time_elapsed += 1
         self.times.append(timer.consumed)

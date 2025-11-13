@@ -4,6 +4,7 @@ from collections import deque
 
 from core.animal import Animal, Gender
 from core.ark import Ark
+from core.cell import Cell
 from core.engine import Engine
 from core.player_info import PlayerInfo
 from core.ui.utils import render_img, write_at
@@ -346,18 +347,20 @@ class ArkUI:
             hi.draw_message(self.screen, self.big_font, (margined_x, y), last_msg)
 
     def draw_animals_on_map(self):
-        for animal, cell in self.engine.free_animals.items():
+        for animal, cell in self.engine.animals.items():
             animal_center = self.map_coords_to_px(cell.x, cell.y)
             animal.draw_on_map(self.screen, animal_center)
 
     def draw_animals(self):
-        for animal, cell in self.engine.free_animals.items():
-            if not self.coords_fit_in_grid(cell.x, cell.y):
-                continue
-            animal_center = self.coords_to_px(cell.x, cell.y)
+        for animal, placed in self.engine.animals.items():
+            match placed:
+                case Cell() as cell:
+                    if not self.coords_fit_in_grid(cell.x, cell.y):
+                        continue
+                    animal_center = self.coords_to_px(cell.x, cell.y)
 
-            animal.draw(self.screen, self.big_font, animal_center)
-            self.drawn_objects[(animal_center, c.ANIMAL_RADIUS)] = animal
+                    animal.draw(self.screen, self.big_font, animal_center)
+                    self.drawn_objects[(animal_center, c.ANIMAL_RADIUS)] = animal
 
     def draw_hovered_animal(self, sid: int, gender: Gender, pos: tuple[int, int]):
         left, top = self.render_hover_view("Animal")
@@ -413,8 +416,11 @@ class ArkUI:
             case PlayerInfo() as hi:
                 self.draw_hovered_helper(hi)
             case Animal(species_id=sid, gender=g):
-                cell = self.engine.free_animals[best_obj]
-                self.draw_hovered_animal(sid, g, (cell.x, cell.y))
+                placed = self.engine.animals[best_obj]
+
+                match placed:
+                    case Cell() as cell:
+                        self.draw_hovered_animal(sid, g, (cell.x, cell.y))
 
     def draw_objects(self):
         self.drawn_objects.clear()

@@ -102,19 +102,20 @@ class RandomPlayer(Player):
         if not self.is_flock_empty():
             return Move(*self.move_towards(*self.ark_position))
 
-        # If I've chased an animal, I'll obtain it
+        # If I've reached an animal, I'll obtain it
         cellview = self._get_my_cell()
         if len(cellview.animals) > 0:
+            # This means the random_player will even attempt to
+            # (unsuccessfully) obtain animals in other helpers' flocks
             random_animal = choice(tuple(cellview.animals))
             return Obtain(random_animal)
 
         # If I see any animals, I'll chase the closest one
         closest_animal = self._find_closest_animal()
         if closest_animal:
-            c_x, c_y = closest_animal
-            target_cv = self.sight.get_cellview_at(c_x, c_y)
-            if len(target_cv.helpers) == 0:
-                return Move(*self.move_towards(*closest_animal))
+            # This means the random_player will even approach
+            # animals in other helpers' flocks
+            return Move(*self.move_towards(*closest_animal))
 
         # Move in a random direction
         return Move(*self._get_random_move())
