@@ -19,19 +19,20 @@ class Cell:
         self.right: Cell | None = None
 
     def get_view(self, make_unknown: bool) -> CellView:
+        free_animals = [a.copy(make_unknown) for a in self.animals]
         shepherded_animals = [
             a.copy(make_unknown) for h in self.helpers for a in h.flock
         ]
 
-        all_animals = list(self.animals) + shepherded_animals
+        all_animals = free_animals + shepherded_animals
         # ensure readers can't deduce anything from the ordering
         shuffle(all_animals)
 
         return CellView(
             self.x,
             self.y,
-            {animal.copy(make_unknown) for animal in all_animals},
-            self.helpers,
+            set(all_animals),
+            {h.get_view() for h in self.helpers},
         )
 
     def get_emptiest_neighbors(self) -> list[Cell]:
