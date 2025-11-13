@@ -1,7 +1,6 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import final
-
 from math import hypot
 
 
@@ -10,7 +9,7 @@ from core.animal import Animal
 from core.message import Message
 from core.player_info import PlayerInfo
 from core.snapshots import HelperSurroundingsSnapshot
-from core.views.player_view import PlayerView, Kind
+from core.views.player_view import Kind
 
 import core.constants as c
 
@@ -49,10 +48,6 @@ class Player(ABC):
             self.kind,
             self.flock,
         )
-
-    @final
-    def get_view(self) -> PlayerView:
-        return PlayerView(self.id, self.kind)
 
     @final
     def is_in_ark(self) -> bool:
