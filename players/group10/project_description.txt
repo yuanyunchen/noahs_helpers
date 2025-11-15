@@ -1,0 +1,84 @@
+PROJECT 4: NOAH’S HELPERS – FULL SPECIFICATION (STRUCTURED)
+
+1. OVERVIEW
+Noah must gather one male and one female of each species before the great flood. Multiple helpers explore a large 1000×1000 km landscape, locate animals, shepherd them back to the Ark, and attempt to maximize the score under strict movement, visibility, communication, and timing constraints.
+
+2. MAP AND WORLD
+- World size: 1000 km × 1000 km, represented as a 1000 × 1000 grid.
+- Ark position: integer cell (XA, YA), with 0 ≤ XA, YA ≤ 999.
+- Helpers start at the Ark at continuous position (x, y) = (XA, YA).
+- A helper’s cell is (floor(x), floor(y)).
+
+3. HELPERS
+3.1 Capabilities
+- Can carry (shepherd) up to 4 animals at a time.
+- Movement: up to 1 km per turn in any direction, only if the helper did NOT obtain or release an animal during that turn.
+- Sight: 5 km radius; can see other helpers and animals.
+- Species recognition: from a distance they know the species; gender can be determined only when in the same cell as the animal.
+- Obtaining animals: when entering a cell with animals, the helper may choose to pick up any subset.
+- Releasing animals: helpers may release animals to free space; released animals remain in the current cell.
+- Unloading at Ark: when entering Ark’s cell, the helper automatically unloads all animals.
+
+3.2 Communication
+- Helpers and Noah may broadcast exactly 1 byte per turn.
+- Any helper within 5 km receives the broadcast.
+- Everyone knows the turn number; time-based encoding is possible.
+
+4. NOAH
+- Noah is stationary at the Ark.
+- Can broadcast 1 byte per turn, same visibility rules as helpers.
+- Functions as coordination center via communication.
+
+5. ANIMALS
+5.1 Species and Placement
+- There are S species.
+- Each species i has population ni ≥ 2.
+- Exactly ni animals of species i are placed randomly in the world.
+- Multiple animals can occupy the same cell.
+- Gender assignment: first two animals of each species are guaranteed opposite genders; the remainder are assigned genders randomly (equal probability).
+- Noah and helpers know the ni values beforehand, but not positions or genders.
+
+5.2 Animal Movement
+- After each helper-turn, every un‑shepherded animal moves with probability 0.5.
+- If moving, animal chooses an orthogonal neighbor cell with the fewest animals.
+- If multiple cells tie, one is chosen randomly.
+
+6. ARK RULES
+- When a helper reaches the Ark’s cell:
+  * For each animal carried: if the Ark does NOT have an animal of that species AND gender yet, the animal is added.
+  * If a duplicate (species+gender already present), it is discarded permanently.
+- Animals on the Ark contribute to the final score.
+
+7. TIMELINE AND TERMINATION
+- Each turn ≈ 10 minutes.
+- Obtaining/releasing animals occurs at the END of turn and does not consume movement.
+- The simulation ends at unknown time T ≥ 2016 turns (at least 14 days).
+- At time T − 1008 (one week before end), rain begins.
+- Helpers have exactly 1008 turns (7 days) after rain begins to return to the Ark.
+- At the final turn, ALL helpers must be on the Ark.
+
+8. SCORING
+- 100 points: species with both male and female on the Ark.
+- 1 point: species with only one gender on the Ark.
+
+9. TOURNAMENT VARIATION
+The simulator will vary:
+- Number of helpers h
+- Ark location (XA, YA)
+- Final time T
+- Number of species S
+- Species populations ni
+This ensures robustness across many scenarios.
+
+10. STRATEGIC CONSIDERATIONS
+- Handling many helpers versus few helpers.
+- Exploration strategy for covering a very large 1000×1000 region.
+- Coordination vs independent action under limited communication (1 byte/turn).
+- How to avoid delivering duplicates (wasting capacity).
+- Prioritizing rare species (small ni).
+- When to release lower-value animals for rarer ones.
+- Planning return deadlines given rain at T − 1008.
+- Using sight range (5 km) effectively for distributed search.
+- Designing communication protocols using restricted 1-byte messages and turn-based encoding.
+
+END OF SPECIFICATION
