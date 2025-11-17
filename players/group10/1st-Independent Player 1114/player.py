@@ -57,15 +57,75 @@ class IndependentPlayer(Player):
         )
         self.turns_since_last_hunt = 999  # Turns since last hunt
 
-        # Sector assignment: divide 360 degrees evenly among helpers
-        sector_size = 360.0 / num_helpers
-        self.sector_start = id * sector_size
-        self.sector_end = (id + 1) * sector_size
+        # Sector assignment: divide 360 degrees among helpers (excluding Noah)
+        # with soft weighting based on ark position
+        # Noah is id=0, real helpers are id=1, 2, ..., num_helpers-1
+        num_actual_helpers = num_helpers - 1
 
-        # Initial heading: Helper i starts with heading angle = i * (360/n)
-        # According to algorithm: "Helper i starts with the heading angle = i * (360/n)"
-        self.current_target_angle = id * sector_size
-        self.explored_angles.append(self.current_target_angle)
+        # For Noah (id=0), no sector assignment needed
+        if id == 0:
+            self.sector_start = 0
+            self.sector_end = 0
+            self.current_target_angle = 0
+            self.explored_angles = []
+        else:
+            # Calculate weighted sector sizes based on explorable area in each direction
+            # First, calculate distance to boundary in each direction for each helper
+            helper_weights = []
+
+            for h_idx in range(num_actual_helpers):
+                # Base angle for this helper (evenly distributed)
+                base_angle = h_idx * 360.0 / num_actual_helpers
+                angle_rad = radians(base_angle)
+
+                # Calculate distance to boundary in this direction
+                # Start from ark, go in direction until hitting world edge
+                dx = cos(angle_rad)
+                dy = sin(angle_rad)
+
+                # Calculate max distance in this direction
+                if dx > 0:
+                    t_x = (c.X - 1 - ark_x) / dx
+                elif dx < 0:
+                    t_x = -ark_x / dx
+                else:
+                    t_x = float("inf")
+
+                if dy > 0:
+                    t_y = (c.Y - 1 - ark_y) / dy
+                elif dy < 0:
+                    t_y = -ark_y / dy
+                else:
+                    t_y = float("inf")
+
+                max_distance = min(t_x, t_y, 1000)  # Cap at reasonable distance
+
+                # Inverse weighting: larger explorable area → smaller sector angle
+                # Logic: large areas need smaller angles to cover similar actual area
+                # Use 1 / (distance^0.8) for soft inverse weighting
+                weight = 1.0 / (max_distance**0.85)
+                helper_weights.append(weight)
+
+            # Normalize weights to sum to 360 degrees
+            total_weight = sum(helper_weights)
+            sector_sizes = [w / total_weight * 360.0 for w in helper_weights]
+
+            # Calculate sector boundaries
+            sector_boundaries = [0]
+            for size in sector_sizes:
+                sector_boundaries.append(sector_boundaries[-1] + size)
+
+            # Assign sector to this helper
+            helper_index = id - 1
+            self.sector_start = sector_boundaries[helper_index]
+            self.sector_end = sector_boundaries[helper_index + 1]
+
+            # Initial heading: center of assigned sector
+            self.current_target_angle = (self.sector_start + self.sector_end) / 2
+            self.explored_angles.append(self.current_target_angle)
+
+        # Track explored directions (both outbound and return paths)
+        self.explored_return_angles = []  # Return path angles
 
         # Track what's on the ark
         self.ark_animals = set(
@@ -151,7 +211,10 @@ class IndependentPlayer(Player):
 
         # Priority 2: Try to obtain animals if we're in a cell with animals
         # Skip if we're returning and already have flock (focus on getting back to ark)
-        should_skip_obtain = self.state == "returning" and len(self.flock) > 0
+        # ALSO skip if in returning_to_discovery state (focus on getting back to discovery position)
+        should_skip_obtain = (
+            self.state == "returning" and len(self.flock) > 0
+        ) or self.state == "returning_to_discovery"
 
         if not self.is_flock_full() and not should_skip_obtain:
             # Check if we can see our current cell
@@ -164,12 +227,22 @@ class IndependentPlayer(Player):
                         # Only obtain if:
                         # 1. Gender is known (we're in same cell, so it should be known)
                         # 2. Ark doesn't have this species+gender yet
-                        # 3. We have space
-                        # 4. Animal is not already in our flock (not shepherded)
+                        # 3. Our flock doesn't have this species+gender yet (avoid duplicates)
+                        # 4. We have space
+                        # 5. Animal is not already in our flock (not shepherded)
+
+                        # Check if flock already has this species+gender
+                        flock_has_this = any(
+                            a.species_id == animal.species_id
+                            and a.gender == animal.gender
+                            for a in self.flock
+                        )
+
                         if (
                             animal.gender != Gender.Unknown
                             and (animal.species_id, animal.gender)
                             not in self.ark_animals
+                            and not flock_has_this
                             and animal not in self.flock
                             and not self.is_flock_full()
                         ):
@@ -191,6 +264,23 @@ class IndependentPlayer(Player):
             # We just arrived at ark, animals are auto-unloaded
             # Ark updates the global list (handled in check_surroundings via ark_view)
             # The helper receives this updated information before its next exploration leg
+
+            # Check if we've collected all animals (all species have both genders)
+            all_species_complete = True
+            for species_id in range(len(self.species_populations)):
+                has_male = (species_id, Gender.Male) in self.ark_animals
+                has_female = (species_id, Gender.Female) in self.ark_animals
+                if not (has_male and has_female):
+                    all_species_complete = False
+                    break
+
+            if all_species_complete:
+                # All animals collected! Stay at ark
+                self.state = "at_ark"
+                self.forced_return = False
+                return None
+
+            # Still need more animals, continue exploring
             # Choose next exploration angle (maximally distant from all previously explored directions)
             self._choose_next_exploration_angle()
             self.forced_return = False
@@ -291,10 +381,13 @@ class IndependentPlayer(Player):
 
                 # If we can't see the target anymore or reached cell without obtaining
                 # Give up hunting after reasonable attempts
-                if not target_found or (
-                    cell_x == self.target_animal_cell[0]
+                at_target_cell = (
+                    self.target_animal_cell is not None
+                    and cell_x == self.target_animal_cell[0]
                     and cell_y == self.target_animal_cell[1]
-                ):
+                )
+
+                if not target_found or at_target_cell:
                     # Record this position to avoid re-hunting nearby soon
                     self.last_hunt_position = (current_x, current_y)
                     self.turns_since_last_hunt = 0
@@ -312,8 +405,11 @@ class IndependentPlayer(Player):
                     self.previous_state = None
                     # Fall through to continue with new state
             else:
-                # Lost target, resume previous state
+                # Lost target species ID, resume previous state
+                self.target_animal_cell = None
+                self.discovery_position = None
                 self.state = self.previous_state if self.previous_state else "exploring"
+                self.previous_state = None
 
         # Priority 5: Search for animals in sight (only if not already hunting or returning to discovery)
         # According to algorithm: "On the return path, the helper continues applying
@@ -451,7 +547,10 @@ class IndependentPlayer(Player):
         return self._return_to_ark(snapshot)
 
     def _return_to_ark(self, snapshot: HelperSurroundingsSnapshot) -> Action | None:
-        """Move towards the ark"""
+        """
+        Move towards the ark with a clockwise offset to explore different areas.
+        The offset angle increases with distance (farther = more offset, but stays close).
+        """
         # Use snapshot position, not self.position
         current_x, current_y = snapshot.position
         ark_x, ark_y = self.ark_position
@@ -467,12 +566,48 @@ class IndependentPlayer(Player):
 
         # Move towards ark, but limit step size
         step_size = c.MAX_DISTANCE_KM * 0.99
-        if dist <= step_size:
-            target_x, target_y = ark_x, ark_y
+
+        # Add clockwise offset to explore different areas on return
+        # Only apply offset in the initial phase of return (far from ark)
+        # Then switch to direct path to ensure efficient return
+        if dist > 100:
+            # Far from ark (>100km): apply clockwise offset to explore new areas
+            # Offset formula: min(30°, distance / 15) gives ~1° per 15km, max 30°
+            offset_radians = radians(min(30, dist / 15))
+
+            # Rotate direction vector clockwise by offset_radians
+            # Clockwise rotation: (x, y) -> (x*cos - y*sin, x*sin + y*cos) with negative angle
+            cos_offset = cos(offset_radians)
+            sin_offset = sin(offset_radians)
+
+            # Apply rotation to direction vector (clockwise)
+            dx_rotated = dx * cos_offset + dy * sin_offset
+            dy_rotated = -dx * sin_offset + dy * cos_offset
+
+            # Normalize and scale
+            dist_rotated = hypot(dx_rotated, dy_rotated)
+            scale = step_size / dist_rotated
+            target_x = current_x + dx_rotated * scale
+            target_y = current_y + dy_rotated * scale
+
+            # Record return angle for next exploration planning
+            from math import atan2, degrees
+
+            return_angle = degrees(atan2(dy_rotated, dx_rotated))
+            if return_angle < 0:
+                return_angle += 360
+
+            # Record this return angle
+            if return_angle not in self.explored_return_angles:
+                self.explored_return_angles.append(return_angle)
         else:
-            scale = step_size / dist
-            target_x = current_x + dx * scale
-            target_y = current_y + dy * scale
+            # Close to ark (≤100km): go directly to ark for efficient return
+            if dist <= step_size:
+                target_x, target_y = ark_x, ark_y
+            else:
+                scale = step_size / dist
+                target_x = current_x + dx * scale
+                target_y = current_y + dy * scale
 
         # Check if we can move to target using the same distance formula as can_move_to
         distance_to_target_sq = (
@@ -526,9 +661,9 @@ class IndependentPlayer(Player):
         """
         Choose the next angle to explore in our sector.
         Strategy: select the angle that maximizes the minimum distance to all "obstacles"
-        (explored angles AND sector boundaries).
+        (explored outbound angles, explored return angles, AND sector boundaries).
 
-        Example: sector 0-90, explored [0] -> choose 45 (far from both 0, 90)
+        Example: sector 0-90, explored outbound [0], return [10] -> choose ~50 (far from all)
         """
         num_samples = 72  # Sample more candidates for better coverage
         candidates = []
@@ -547,13 +682,21 @@ class IndependentPlayer(Player):
         best_min_dist = -1
 
         for candidate in candidates:
-            # Calculate minimum distance to ALL obstacles (explored angles + boundaries)
+            # Calculate minimum distance to ALL obstacles
             min_dist = float("inf")
 
-            # Distance to explored angles
+            # Distance to explored outbound angles
             for explored in self.explored_angles:
                 # Calculate angular distance (accounting for wraparound)
                 dist = abs(candidate - explored)
+                if dist > 180:
+                    dist = 360 - dist
+                min_dist = min(min_dist, dist)
+
+            # Distance to explored return angles
+            for return_angle in self.explored_return_angles:
+                # Calculate angular distance (accounting for wraparound)
+                dist = abs(candidate - return_angle)
                 if dist > 180:
                     dist = 360 - dist
                 min_dist = min(min_dist, dist)
@@ -593,6 +736,10 @@ class IndependentPlayer(Player):
             cell_x, cell_y = cell_view.x, cell_view.y
             is_current_cell = cell_x == current_cell_x and cell_y == current_cell_y
 
+            # Check if there are other helpers in this cell
+            # If yes, Unknown gender animals might be in their flocks
+            has_other_helpers = any(h.id != self.id for h in cell_view.helpers)
+
             # Check if this cell has animals we need
             has_needed_known_animal = False
             has_needed_unknown_animal = False
@@ -616,13 +763,13 @@ class IndependentPlayer(Player):
                     else:
                         # Unknown gender: from distance we can't tell gender
                         # Could be needed, or could be shepherded by another helper
-                        if is_current_cell:
-                            # In same cell but gender still Unknown - likely shepherded
-                            # Skip to avoid hunting already-shepherded animals
+                        if is_current_cell or has_other_helpers:
+                            # In same cell or cell has other helpers - Unknown gender likely shepherded
+                            # Skip to avoid hunting animals in other helpers' flocks
                             pass
                         else:
-                            # Not in same cell - if species is not complete, consider hunting
-                            # We'll find out the actual gender when we get close
+                            # Not in same cell and no other helpers - likely a free animal
+                            # If species is not complete, consider hunting
                             if not (has_male and has_female):
                                 has_needed_unknown_animal = True
 
@@ -695,18 +842,20 @@ class IndependentPlayer(Player):
     def _get_available_turns(self, snapshot: HelperSurroundingsSnapshot) -> int:
         """
         Conservative estimate of turns remaining before the flood deadline.
-        Uses exact countdown once rain has started, otherwise assumes the
-        earliest possible end time (c.MIN_T).
+        Uses exact countdown once rain has started, otherwise assumes plenty of time.
         """
         if snapshot.is_raining and self.rain_start_turn is None:
             self.rain_start_turn = snapshot.time_elapsed
 
         if self.rain_start_turn is not None:
+            # Rain has started - we know exactly how much time remains
             turns_since_rain = snapshot.time_elapsed - self.rain_start_turn
             return max(0, c.START_RAIN - turns_since_rain)
 
-        # Rain has not started yet; assume the simulation could end at MIN_T
-        return max(0, c.MIN_T - snapshot.time_elapsed)
+        # Rain has not started yet - we don't know when T is
+        # Be optimistic and assume we have plenty of time to explore
+        # Return a large number so helpers continue exploring
+        return 10000  # Effectively infinite before rain starts
 
     def _sync_ark_information(self, snapshot: HelperSurroundingsSnapshot) -> None:
         """

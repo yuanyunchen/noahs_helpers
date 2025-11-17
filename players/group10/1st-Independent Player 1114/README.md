@@ -14,31 +14,45 @@ An intelligent helper agent for Noah's Ark simulation that uses radial sector-ba
 
 ## Overview
 
-This implementation solves the Noah's Ark helper problem where multiple agents must explore a 1000×1000 km landscape, locate animals, and shepherd them back to the ark before a deadline. The solution uses a sector-based radial exploration strategy with dynamic animal tracking to maximize efficiency.
+This implementation solves the Noah's Ark helper problem where multiple agents must explore a 1000×1000 km landscape, locate animals, and shepherd them back to the ark before a deadline. The solution uses an intelligent sector-based radial exploration strategy with dynamic animal tracking, optimized return paths, and adaptive sector allocation.
 
-**Key Innovation**: Dynamic species tracking that follows moving animals instead of going to fixed locations, improving catch rate from 0% to 25%.
+**Key Innovations**: 
+1. Dynamic species tracking (catch rate 0% → 25%)
+2. Two-phase return path with clockwise offset (18° coverage increase)
+3. Inverse sector weighting based on ark position (balanced exploration)
 
 ## Features
 
-### 1. Sector-Based Exploration
-- **Area Division**: 360° space divided evenly among helpers (e.g., 4 helpers → 90° sectors each)
-- **Initial Direction**: Helper i starts at angle i × (360/n)
-- **Smart Direction Selection**: Next angle maximizes distance from both:
-  - Previously explored directions
+### 1. Intelligent Sector-Based Exploration
+- **Inverse Area Weighting**: Larger explorable areas get smaller sector angles (more efficient coverage)
+  - North direction (large area): smaller angle (~40°)
+  - South direction (small area): larger angle (~70°)
+  - Formula: `weight = 1 / distance^0.8` for soft inverse weighting
+- **Helper Assignment**: Excludes Noah (id=0), assigns sectors to actual helpers (id=1..n-1)
+- **Smart Direction Selection**: Next angle maximizes distance from:
+  - Previously explored outbound angles
+  - Previously explored return angles
   - Sector boundaries
-  - Example: Sector 0-90°, explored [0°] → next: 45°
+  - Example: Sector 0-90°, explored outbound [0°], return [10°] → next: ~50°
 
 ### 2. Dynamic Animal Tracking
 - **Species Tracking**: Records target species ID when hunting starts
 - **Position Updates**: Re-locates target species each turn (animals move with 50% probability)
 - **Adaptive Pursuit**: Follows moving animals instead of going to fixed locations
-- **Smart Filtering**: Skips animals already shepherded by other helpers
+- **Smart Filtering**: 
+  - Skips animals already in own flock
+  - Skips Unknown gender animals when other helpers are in same cell (likely shepherded)
+  - Prevents hunting other helpers' animals
 
-### 3. Flexible Return Strategy
+### 3. Optimized Return Strategy
 - **Return Triggers**: 
-  - Captured 2+ animals
-  - Flock full (4 animals)
+  - Captured any animals (1+)
   - Time constraint requires immediate return
+- **Two-Phase Return Path**:
+  - **Phase 1 (>100km)**: Clockwise offset to explore new areas
+    - Offset formula: `min(30°, distance/15)` - larger offset when farther
+    - Explores different regions than outbound path
+  - **Phase 2 (≤100km)**: Direct path to ark for efficient return
 - **Opportunistic Hunting**: Continues catching needed animals during return journey
 - **Capacity Maximization**: Fills flock to 4 animals when possible
 
@@ -47,10 +61,12 @@ This implementation solves the Noah's Ark helper problem where multiple agents m
 - **Discovery Position**: Returns to position where hunt started before resuming journey
 - **State Management**: Properly transitions between exploring, hunting, and returning states
 
-### 5. Time Management
-- **Safety Margin**: Returns 100 turns before deadline
-- **Rain Awareness**: Tracks rain start time (T - 1008) for precise calculations
+### 5. Intelligent Time Management
+- **Before Rain**: Assumes infinite time (10000 turns) to maximize exploration
+- **After Rain**: Precise countdown with 100-turn safety margin
+- **Rain Detection**: Tracks rain start time (T - 1008) for exact calculations
 - **Dynamic Constraints**: Never ventures beyond safe return distance
+- **Completion Detection**: Stops exploring when all species have both genders
 
 ## Installation
 
@@ -133,24 +149,46 @@ Each turn processes actions in priority order:
 6. **Priority 6** - Continue exploring or returning
 
 #### Animal Selection Criteria
-- Ark doesn't have both genders of this species
-- Animal not already in helper's flock
-- For unknown gender animals:
-  - In same cell but gender unknown → skip (likely shepherded)
-  - Outside cell and species incomplete → consider hunting
-  - Time remaining > 200 turns for unknown gender hunts
+**Always Hunt:**
+- Known gender animals that ark needs
 
-#### Direction Selection (After Delivery)
-When returning to ark with animals:
+**Skip:**
+- Animals already in own flock
+- Unknown gender animals when other helpers in same cell (likely shepherded)
+- Species where ark has both genders
+- Unknown gender animals when time < 200 turns (focus on returning)
 
-1. Generate 72 candidate angles within sector
-2. For each candidate, calculate minimum distance to:
-   - All explored angles
-   - Sector start boundary  
+**Consider (Unknown gender):**
+- No other helpers in cell AND species incomplete
+- Time remaining > 200 turns
+
+#### Return Path Strategy
+
+**Phase 1 - Far from Ark (>100km):**
+1. Calculate angle to ark
+2. Add clockwise offset: `min(30°, distance/15)`
+3. Move in offset direction (explores new areas)
+4. Record return angle as explored
+
+**Phase 2 - Close to Ark (≤100km):**
+1. Move directly toward ark
+2. No offset (efficient return)
+
+**Example**: Starting 300km away at 240° → returns at ~260° (+20° offset) → direct path at 100km
+
+#### Next Exploration Direction Selection
+
+After delivering animals to ark:
+
+1. Generate 72 candidate angles within assigned sector
+2. For each candidate, calculate minimum distance to ALL obstacles:
+   - All explored outbound angles
+   - All explored return angles
+   - Sector start boundary
    - Sector end boundary
-3. Select candidate with maximum minimum distance (furthest from all obstacles)
+3. Select candidate with maximum minimum distance
 
-**Example**: Sector 0-90°, explored [0°] → choose 45° (equidistant from 0° and 90°)
+**Result**: Maximizes coverage by avoiding all previously explored directions.
 
 For detailed algorithm description, see [`1st_trivial_algorithm.txt`](./1st_trivial_algorithm.txt).
 
@@ -158,24 +196,30 @@ For detailed algorithm description, see [`1st_trivial_algorithm.txt`](./1st_triv
 
 ### Benchmark Results
 
-**Test Configuration**: 8 helpers, 6 species (20, 40, 60, 80, 100, 120 animals), Seed 12345
+**Test Configuration**: 8 helpers, 10 species (10, 20, 40, 60, 80, 100, 120, 140, 160, 180 animals), Ark at (550, 350), Seed 12345
 
 | Metric | Value |
 |--------|-------|
-| **Final Score** | 501 |
+| **Final Score** | 802/1000 |
 | **Success Rate** | 100% (all helpers returned) |
-| **Execution Time** | 1.0 second (2500 turns) |
-| **Performance** | 2,460 turns/second |
+| **Execution Time** | ~1.5 seconds (2500 turns) |
+| **Performance** | ~527 turns/second |
 
-### Improvements Over Baseline
+### Key Improvements
 
-| Feature | Before | After | Improvement |
-|---------|--------|-------|-------------|
-| **Catch Rate** | 0% | 25% | ✅ +25% |
-| **Score** | 204 | 501 | ✅ +145% |
-| **Stuck Helpers** | Yes | No | ✅ 100% reliable |
+| Feature | Description | Impact |
+|---------|-------------|--------|
+| **Dynamic Tracking** | Follow moving animals vs fixed locations | Catch rate 0% → 25% |
+| **Return Path Offset** | Two-phase return with clockwise offset | +18° coverage difference |
+| **Inverse Weighting** | Larger areas get smaller angles | Balanced exploration |
+| **Smart Filtering** | Skip other helpers' animals | Prevents hunting loops |
+| **Completion Detection** | Stop when all species collected | Saves time & energy |
+| **Anti-Stuck** | Multiple protections | 100% reliability |
 
-**Key Innovation**: Dynamic species tracking (following moving animals) instead of going to fixed locations.
+**Key Innovations**: 
+1. Dynamic species tracking for moving animals
+2. Two-phase return path optimization
+3. Inverse sector weighting based on ark position
 
 ## Configuration
 
@@ -184,14 +228,14 @@ For detailed algorithm description, see [`1st_trivial_algorithm.txt`](./1st_triv
 Modify `test.sh` to customize simulation:
 
 ```bash
-PLAYER="10"                    # Player ID
-NUM_HELPERS=8                  # Number of helpers
-ANIMALS="20 40 60 80 100 120"  # Animal populations per species
-ARK_X=500                      # Ark X coordinate
-ARK_Y=500                      # Ark Y coordinate
-TIME=2500                      # Simulation duration (turns)
-SEED=12345                     # Random seed
-GUI="false"                    # Enable/disable visualization
+PLAYER="10"                                      # Player ID
+NUM_HELPERS=8                                    # Number of helpers (1 Noah + 7 helpers)
+ANIMALS="10 20 40 60 80 100 120 140 160 180"    # Animal populations (10 species)
+ARK_X=550                                        # Ark X coordinate
+ARK_Y=350                                        # Ark Y coordinate
+TIME=2500                                        # Simulation duration (turns)
+SEED=12345                                       # Random seed
+GUI="true"                                       # Enable/disable visualization
 ```
 
 ### Command Line Options
@@ -210,10 +254,23 @@ GUI="false"                    # Enable/disable visualization
 
 ```
 1st-Independent Player 1114/
-├── player.py                      # Main implementation (681 lines)
+├── player.py                      # Main implementation (~860 lines)
 ├── 1st_trivial_algorithm.txt      # Detailed algorithm description
 └── README.md                      # This file
 ```
+
+### Key Components in player.py
+
+- **IndependentPlayer class**: Main player implementation
+- **State machine**: exploring → hunting → returning_to_discovery → returning → at_ark
+- **Helper methods**:
+  - `_explore()` - Radial outbound exploration
+  - `_return_to_ark()` - Two-phase return with offset
+  - `_find_nearest_needed_animal()` - Smart animal filtering
+  - `_choose_next_exploration_angle()` - Direction optimization
+  - `_move_towards_cell()` / `_move_towards_position()` - Movement utilities
+  - `_get_available_turns()` - Time management
+  - `_sync_ark_information()` - Shared state synchronization
 
 ## See Also
 
